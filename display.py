@@ -87,8 +87,13 @@ def main():
 
             time.sleep(1)
     except KeyboardInterrupt:
-        logging.info("Stopping")
-        w.close()
+        logging.info("caught KeyboardInterrupt")
+    except Exception, e:
+        logging.warn("caught exception:", e)
+
+    logging.info("stopping!")
+    w.close()
+    logging.info("stopped!")
 
 
     # display images
@@ -99,7 +104,7 @@ if __name__ == '__main__':
     root.setLevel(logging.DEBUG)
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(asctime)s: %(levelname)s: %(threadName)s: %(message)s')
     ch.setFormatter(formatter)
     root.addHandler(ch)
 
