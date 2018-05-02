@@ -5,9 +5,8 @@ import ImageDraw
 import socket
 
 import ConfigParser
-import pyowm
-import location
-import weather
+from location import location
+from weather import weather
 
 import time
 import datetime
