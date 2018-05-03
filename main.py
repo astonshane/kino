@@ -1,17 +1,14 @@
-import epd2in7.epd2in7 as epd2
-import Image
-import ImageFont
-import ImageDraw
-import socket
-
-import ConfigParser
 from location import location
 from weather import weather
+from display import display
+from baseimage import image
 
 import time
 import datetime
 import sys
 import logging
+import socket
+import ConfigParser
 
 def getLocalIp():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -35,11 +32,11 @@ def main():
 
     l = location.Location(config.get("DEFAULT", "IPSTACK_API_KEY"))
     w = weather.Weather(config.get("DEFAULT", "WEATHER_API_KEY"), l.latitude, l.longitude)
+
+    localIP = getLocalIp()
     try:
 
-        epd = epd2.EPD()
-        epd.init()
-
+        disp = display.Display()
         last_tm = None
 
         while True:
@@ -48,55 +45,35 @@ def main():
                 last_tm = tm
 
                 # For simplicity, the arguments are explicit numerical coordinates
-                image = Image.new('1', (epd2.EPD_WIDTH, epd2.EPD_HEIGHT), 255)    # 255: clear the image with white
-                draw = ImageDraw.Draw(image)
-                font = ImageFont.truetype('/usr/share/fonts/truetype/freefont/FreeMonoBold.ttf', 18)
+                baseImage = image.BaseImage(disp.height, disp.width)
 
-                # local ip
-                localIP = getLocalIp()
-                draw.text((5, 5), localIP, font = font, fill = 0)
-
-                # border
-                draw.rectangle((0, 25, epd2.EPD_HEIGHT, 30), fill = 0)
-
-                # location
-                draw.text((5, 35), str(l), font = font, fill = 0)
-
-                # border
-                draw.rectangle((0, 55, epd2.EPD_HEIGHT, 60), fill = 0)
-
-                draw.text((5, 65), weatherString(w), font=font, fill=0)
-
-                # border
-                draw.rectangle((0, 85, epd2.EPD_HEIGHT, 90), fill = 0)
-
-                # time
-
+                # date / time
                 time_string = tm.strftime("%I:%M %p")
-                date_string = tm.strftime("%a %b %m %Y")
-                draw.text((5, 95), time_string, font=font, fill=0)
-                draw.text((5, 115), date_string, font=font, fill=0)
+                date_string = tm.strftime("%a %d %b %Y")
+                baseImage.drawText(time_string)
+                baseImage.drawText(date_string)
+                baseImage.drawBorder(height=5, width=disp.height)
 
-                # border
-                draw.rectangle((0, 135, epd2.EPD_HEIGHT, 140), fill = 0)
+                # weather temp / condition
+                baseImage.drawText(weatherString(w))
+                baseImage.drawBorder(height=5, width=disp.height)
 
-                #draw.text((5, 145), w.getLastUpdate().strftime("%I:%M %p"), font=font, fill=0)
+                # local ip addr
+                baseImage.drawText(localIP)
+                baseImage.drawBorder(height=5, width=disp.height)
 
-                epd.display_frame(epd.get_frame_buffer(image))
+                disp.displayImage(baseImage.image)
 
             time.sleep(1)
     except KeyboardInterrupt:
         logging.info("caught KeyboardInterrupt")
     except Exception, e:
-        logging.warn("caught exception:", e)
+        logging.warn("caught exception: %s" % str(e))
 
     logging.info("stopping!")
     w.close()
     logging.info("stopped!")
 
-
-    # display images
-    #epd.display_frame(epd.get_frame_buffer(Image.open('monocolor.bmp')))
 
 if __name__ == '__main__':
     root = logging.getLogger()
