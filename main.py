@@ -9,6 +9,14 @@ import sys
 import logging
 import socket
 import ConfigParser
+import daemon
+import signal
+import lockfile
+
+config = None
+
+def shutdown(signum, frame):
+    sys.exit(0)
 
 def getLocalIp():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -25,63 +33,75 @@ def weatherString(w):
     return u"%s%s %s" % (current_temp_f, deg, current_status)
 
 def main():
+    global config
     logging.info("starting!")
-
-    config = ConfigParser.ConfigParser()
-    config.read('config.ini')
 
     l = location.Location(config.get("DEFAULT", "IPSTACK_API_KEY"))
     w = weather.Weather(config.get("DEFAULT", "WEATHER_API_KEY"), l.latitude, l.longitude)
 
     localIP = getLocalIp()
-    try:
 
-        disp = display.Display()
-        last_tm = None
+    disp = display.Display()
+    last_tm = None
 
-        while True:
-            tm = datetime.datetime.now()
-            if last_tm is None or tm.minute > last_tm.minute:
-                last_tm = tm
+    while True:
+        tm = datetime.datetime.now()
+        if last_tm is None or tm.minute > last_tm.minute:
+            last_tm = tm
 
-                # For simplicity, the arguments are explicit numerical coordinates
-                baseImage = image.BaseImage(disp.height, disp.width)
+            # For simplicity, the arguments are explicit numerical coordinates
+            baseImage = image.BaseImage(disp.height, disp.width)
 
-                # date / time
-                time_string = tm.strftime("%I:%M %p")
-                date_string = tm.strftime("%a %d %b %Y")
-                baseImage.drawText(time_string)
-                baseImage.drawText(date_string)
-                baseImage.drawBorder(height=5, width=disp.height)
+            # date / time
+            time_string = tm.strftime("%I:%M %p")
+            date_string = tm.strftime("%a %d %b %Y")
+            baseImage.drawText(time_string)
+            baseImage.drawText(date_string)
+            baseImage.drawBorder(height=5, width=disp.height)
+            logging.debug("drawing date/time")
 
-                # weather temp / condition
-                baseImage.drawText(weatherString(w))
-                baseImage.drawBorder(height=5, width=disp.height)
+            # weather temp / condition
+            baseImage.drawText(weatherString(w))
+            baseImage.drawBorder(height=5, width=disp.height)
+            ogging.debug("drawing weather")
 
-                # local ip addr
-                baseImage.drawText(localIP)
-                baseImage.drawBorder(height=5, width=disp.height)
+            # local ip addr
+            baseImage.drawText(localIP)
+            baseImage.drawBorder(height=5, width=disp.height)
+            ogging.debug("drawing ip")
 
-                disp.displayImage(baseImage.image)
+            disp.displayImage(baseImage.image)
+            ogging.debug("drawing full image")
 
             time.sleep(1)
-    except KeyboardInterrupt:
-        logging.info("caught KeyboardInterrupt")
-    except Exception, e:
-        logging.warn("caught exception: %s" % str(e))
 
     logging.info("stopping!")
     w.close()
     logging.info("stopped!")
 
 
-if __name__ == '__main__':
-    root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s: %(levelname)s: %(threadName)s: %(message)s')
-    ch.setFormatter(formatter)
-    root.addHandler(ch)
+print "hello"
+config = ConfigParser.ConfigParser()
+if len(sys.argv) < 2:
+    print "usage: python main.py <path to config file>"
+    sys.exit(1)
+config.read(sys.argv[1])
 
+print sys.argv
+
+with daemon.DaemonContext(
+    signal_map={
+        signal.SIGTERM: shutdown,
+        signal.SIGTSTP: shutdown,
+    },
+    pidfile=lockfile.FileLock(config.get("DEFAULT", "PID_FILE")),
+    stdout=sys.stdout,
+    stderr=sys.stderr,
+    working_directory="/home/pi/projects/kino/"
+):
+    logging.basicConfig(
+        filename=config.get("DEFAULT", "LOG_FILE"),
+        format='%(asctime)s: %(levelname)s: %(threadName)s: %(message)s',
+        level=logging.DEBUG
+    )
     main()
